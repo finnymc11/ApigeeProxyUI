@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Apigee OAuth2 + JWT Test UI</title>
+</head>
+<body>
+  <h1>Apigee OAuth2 + JWT Test</h1>
+
+  <!-- STEP 1: Get JWT token -->
+  <section>
+    <h2>1. Get access token (JWT)</h2>
+
+    <label>
+      Client ID:
+      <input id="clientId" type="text" autocomplete="off" />
+    </label>
+    <br />
+
+    <label>
+      Client Secret:
+      <input id="clientSecret" type="password" autocomplete="off" />
+    </label>
+    <br />
+
+    <button id="getToken">Get Token</button>
+
+    <h3>Raw token response</h3>
+    <pre id="tokenResponse"></pre>
+  </section>
+
+  <hr/>
+
+  <!-- STEP 2: Call API with token -->
+  <section>
+    <h2>2. Call API with token</h2>
+
+    <label>
+      Access token / JWT:
+      <br />
+      <textarea id="tokenInput" rows="4" cols="80"></textarea>
+    </label>
+    <br />
+
+    <button id="callApi">Call API</button>
+
+    <h3>API response</h3>
+    <pre id="apiResponse"></pre>
+  </section>
+
+  <script>
+    // 🔧 Change these to your actual endpoints
+    const TOKEN_URL = "https://136.110.200.52.nip.io/oauth/token";
+    const API_URL   = "https://136.110.200.52.nip.io/finbar-app2";
+
+    // STEP 1: Get token via OAuth2 client_credentials
+    document.getElementById("getToken").addEventListener("click", async () => {
+      const clientId = document.getElementById("clientId").value.trim();
+      const clientSecret = document.getElementById("clientSecret").value.trim();
+      const out = document.getElementById("tokenResponse");
+      const tokenBox = document.getElementById("tokenInput");
+
+      out.textContent = "Requesting token...";
+
+      try {
+        // Basic auth header: base64(clientId:clientSecret)
+        const basic = btoa(`${clientId}:${clientSecret}`);
+
+        const res = await fetch(TOKEN_URL, {
+          method: "POST",
+          headers: {
+            "Authorization": `Basic ${basic}`,
+            "Content-Type": "application/x-www-form-urlencoded"
+          },
+          body: new URLSearchParams({
+            grant_type: "client_credentials"
+          })
+        });
+
+        const data = await res.json().catch(() => null);
+
+        if (!res.ok) {
+          out.textContent = `Error ${res.status}:\n` + (data ? JSON.stringify(data, null, 2) : await res.text());
+          return;
+        }
+
+        // Assuming Apigee returns { "access_token": "JWT_HERE", "token_type": "Bearer", ... }
+        out.textContent = JSON.stringify(data, null, 2);
+
+        if (data && data.access_token) {
+          // auto-fill token box for step 2 (you can still edit it manually)
+          tokenBox.value = data.access_token;
+        }
+      } catch (err) {
+        out.textContent = String(err);
+      }
+    });
+
+    // STEP 2: Call the protected API with Bearer token
+    document.getElementById("callApi").addEventListener("click", async () => {
+      const token = document.getElementById("tokenInput").value.trim();
+      const out = document.getElementById("apiResponse");
+
+      if (!token) {
+        out.textContent = "Please paste/enter a token first.";
+        return;
+      }
+
+      out.textContent = "Calling API...";
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "GET",
+          headers: {
+            "Authorization": `Bearer ${token}`
+          }
+        });
+
+        const text = await res.text();
+        out.textContent = `Status: ${res.status}\n\n${text}`;
+      } catch (err) {
+        out.textContent = String(err);
+      }
+    });
+  </script>
+</body>
+</html>
